@@ -1,0 +1,26 @@
+commands:
+  derpi:
+    description: 获取呆站图片
+    messages:
+      metadata-error: 加载图片信息失败。
+      image-error: 加载图片失败。
+      is-removed: 该图片已被删除。
+      is-video: 不支持获取视频。
+      too-fast: 操作过于频繁，请等待上一张图片请求完成后再试。
+      hold-on: 请稍候，正在获取……
+    random:
+      description: 随机获取呆站图片
+      options:
+        r34: 指定最高可能出现的 R34 分级：--r34 1 或 -s 表示性暗示，--r34 2 或 -q 表示强烈性暗示，--r34 3 或 -e 表示露骨性描写
+        dark: 指定最高可能出现的黑暗内容分级：--dark 1 或 -S 表示轻度黑暗，--dark 2 或 -g 表示重度黑暗
+        grotesq: 若指定，则可能出现血腥或恶心的图片
+      messages:
+        usage: 输入 derpi.random，后加一个 Derpibooru 搜索串，用于筛选图片。若搜索串中有空格，需给整个搜索串加引号。
+        usage-another: 省略搜索串或输入“再来一张”（或“再来”）可重复最近一次请求。
+        usage-shortcuts: 也可以直接使用以下快捷方式来调用预设的搜索串和选项：
+        require-query: 请指定筛选图片的搜索串。
+        metadata-error: 搜索图片失败。
+        image-error: 加载图片失败。
+        no-result: 没有找到符合条件的图片。
+        too-fast: 操作过于频繁，请等待上一张图片请求完成后再试。
+        hold-on: 请稍候，正在获取……

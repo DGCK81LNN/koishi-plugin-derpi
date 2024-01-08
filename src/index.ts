@@ -1,4 +1,5 @@
 import { Context, Schema, Session, Time, escapeRegExp, segment } from "koishi"
+import type {} from "@koishijs/plugin-help" // used to define hidden options
 import { getRandomImage, LoadedImage, loadImage, setBooruUrl } from "./api"
 import ErrorWrapper from "./error-wrapper"
 import { toFileURL } from "./utils"
@@ -9,6 +10,8 @@ export interface Config {
   booruUrl: string
   /** 获取图片时使用的过滤器编号 */
   filterId: number
+  /** 随机图片必须满足的条件 */
+  restrictions: string
   /** 收到请求后，延迟多长时间发送“请稍候” */
   holdOnTime: number
   /** 在指定时间内，同一频道内如果已经请求过图片，则不再发送“请稍候” */
@@ -43,6 +46,9 @@ export interface Config {
 export const Config: Schema<Config> = Schema.object({
   booruUrl: Schema.string().description("图站网址。").default("https://derpibooru.org"),
   filterId: Schema.number().description("获取图片时使用的过滤器编号。").default(191275),
+  restrictions: Schema.string()
+    .description("随机图片必须满足的条件。会自动添加到所有搜索词中。")
+    .default("wilson_score.gte:0.93"),
   holdOnTime: Schema.number()
     .description("收到请求后，延迟多长时间发送“请稍候”。（毫秒）")
     .default(5 * Time.second),
@@ -131,9 +137,8 @@ export const Config: Schema<Config> = Schema.object({
     ]),
 })
 
-export function apply(ctx: Context, config: Partial<Config> = {}) {
-  const logger = ctx.logger("lnnbot-derpi")
-  config = Config(config as Config)
+export function apply(ctx: Context, config: Config) {
+  const logger = ctx.logger("derpi")
   setBooruUrl(config.booruUrl)
 
   /**
@@ -191,24 +196,25 @@ export function apply(ctx: Context, config: Partial<Config> = {}) {
   const cmdDerpiRandom = ctx
     .command("derpi.random [query:string]", {
       //checkArgCount: true,
-      //checkUnknown: true,
+      checkUnknown: true,
       showWarning: true,
     })
-    .option("r34", "<level:number>", { fallback: 0 })
+    .option("r34", "<level:number>", { fallback: 0, hidden: true })
     .option("r34", "-s", { value: 1 })
     .option("r34", "-q", { value: 2 })
     .option("r34", "-e", { value: 3 })
-    .option("dark", "<level:number>", { fallback: 0 })
+    .option("dark", "<level:number>", { fallback: 0, hidden: true })
     .option("dark", "-S", { value: 1 })
     .option("dark", "-g", { value: 2 })
-    .option("grotesq", "<level:boolean>", { fallback: false })
-    .option("grotesq", "-G", { value: true })
+    .option("grotesq", "-G", { fallback: false, hidden: true })
     .shortcut(/^(?:再来|再来一张)$/)
+    .shortcut(/^随机(?:马)图$/i, { args: ["pony"] })
 
   const randomShortcutsUsage = config.randomShortcuts.map(({ name, query, options }) => {
     const nameArr: string[] = typeof name === "string" ? [name] : name
     const namesRe = nameArr.map(n => escapeRegExp(n)).join("|")
     const regExp = new RegExp(`^随机(?:${namesRe})图$`, "i")
+    //console.dir(regExp)
     cmdDerpiRandom.shortcut(regExp, { args: [query], options })
 
     return `随机${nameArr.join("/")}图`
@@ -227,7 +233,7 @@ export function apply(ctx: Context, config: Partial<Config> = {}) {
     .action(({ session, options: { r34, dark, grotesq } }, query) => {
       let q: string
       if (query) {
-        const restrictions = ["wilson_score.gte:0.93"]
+        const restrictions = [`(${config.restrictions})`]
         if (r34 || dark || grotesq) {
           switch (r34) {
             case 0:
@@ -250,43 +256,18 @@ export function apply(ctx: Context, config: Partial<Config> = {}) {
         q = `(${query}),${restrictions.join(",")}`
         lastQueryMap.set(session.cid, q)
       } else {
+        if (r34 || dark || grotesq) return session.text(".require-query")
         const elapsedTime = Date.now() - (lastInvokeTimeMap.get(session.cid) ?? -Infinity)
         if (elapsedTime > config.anotherTimeout || !lastQueryMap.has(session.cid))
           return session.text(".require-query")
         q = lastQueryMap.get(session.cid)
       }
-      return sendImage(session, getRandomImage({ filter_id: config.filterId, q }))
+      const opt = Object.assign(
+        { q },
+        config.filterId >= 0 ? { filter_id: config.filterId } : null
+      )
+      return sendImage(session, getRandomImage(opt))
     })
 
-  ctx.i18n.define("zh", "commands.derpi", {
-    description: "获取呆站图片",
-    messages: {
-      "metadata-error": "加载图片信息失败。",
-      "image-error": "加载图片失败。",
-      "is-removed": "该图片已被删除。",
-      "is-video": "不支持获取视频。",
-      "too-fast": "操作过于频繁，请等待上一张图片请求完成后再试。",
-      "hold-on": "请稍候，正在获取……",
-    },
-  })
-  ctx.i18n.define("zh", "commands.derpi.random", {
-    description: "随机获取呆站图片",
-    options: {
-      r34: "指定最高可能出现的 R34 分级：--r34 1 或 -s 表示性暗示，--r34 2 或 -q 表示强烈性暗示，--r34 3 或 -e 表示露骨性描写",
-      dark: "指定最高可能出现的黑暗内容分级：--dark 1 或 -S 表示轻度黑暗，--dark 2 或 -g 表示重度黑暗",
-      grotesq: "若指定，则可能出现血腥或恶心的图片",
-    },
-    messages: {
-      "usage":
-        "输入 derpi.random，后加一个 Derpibooru 搜索串，用于筛选图片。若搜索串中有空格，需给整个搜索串加引号。",
-      "usage-another": "省略搜索串或输入“再来一张”（或“再来”）可重复最近一次请求。",
-      "usage-shortcuts": "也可以直接使用以下快捷方式来调用预设的搜索串和选项：",
-      "require-query": "请指定筛选图片的搜索串。",
-      "metadata-error": "搜索图片失败。",
-      "image-error": "加载图片失败。",
-      "no-result": "没有找到符合条件的图片。",
-      "too-fast": "操作过于频繁，请等待上一张图片请求完成后再试。",
-      "hold-on": "请稍候，正在获取……",
-    },
-  })
+  ctx.i18n.define("zh", require("./locales/zh"))
 }
