@@ -207,15 +207,13 @@ export function apply(ctx: Context, config: Config) {
     .option("dark", "-S", { value: 1 })
     .option("dark", "-g", { value: 2 })
     .option("grotesq", "-G", { fallback: false, hidden: true })
-    .shortcut(/^(?:再来|再来一张)$/)
-    .shortcut(/^随机(?:马)图$/i, { args: ["pony"] })
+    .alias("再来", "再来一张")
 
   const randomShortcutsUsage = config.randomShortcuts.map(({ name, query, options }) => {
     const nameArr: string[] = typeof name === "string" ? [name] : name
-    const namesRe = nameArr.map(n => escapeRegExp(n)).join("|")
-    const regExp = new RegExp(`^随机(?:${namesRe})图$`, "i")
-    //console.dir(regExp)
-    cmdDerpiRandom.shortcut(regExp, { args: [query], options })
+    for (const name of nameArr) {
+      cmdDerpiRandom.alias(`随机${name}图`, { args: [query], options })
+    }
 
     return `随机${nameArr.join("/")}图`
   })
