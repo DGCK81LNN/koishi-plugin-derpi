@@ -47,6 +47,7 @@ export const Config: Schema<Config> = Schema.object({
   booruUrl: Schema.string().description("图站网址。").default("https://derpibooru.org"),
   filterId: Schema.number().description("获取图片时使用的过滤器编号。").default(191275),
   restrictions: Schema.string()
+    .role("textarea")
     .description("随机图片必须满足的条件。会自动添加到所有搜索词中。")
     .default("wilson_score.gte:0.93"),
   holdOnTime: Schema.number()
