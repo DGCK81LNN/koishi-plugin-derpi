@@ -1,8 +1,8 @@
-import { Context, Schema, Session, Time, escapeRegExp, segment } from "koishi"
+import { Context, Schema, Session, Time, segment } from "koishi"
 import type {} from "@koishijs/plugin-help" // used to define hidden options
 import { getRandomImage, LoadedImage, loadImage, setBooruUrl } from "./api"
 import ErrorWrapper from "./error-wrapper"
-import { toFileURL } from "./utils"
+import { pathToFileURL } from "url"
 
 export const name = "lnnbot-derpi"
 export interface Config {
@@ -180,7 +180,7 @@ export function apply(ctx: Context, config: Config) {
     }
 
     return (
-      segment("image", { url: toFileURL(outPath) }) + `\n${config.booruUrl}/images/${id}`
+      segment.image(pathToFileURL(outPath).href) + `\n${config.booruUrl}/images/${id}`
     )
   }
 
