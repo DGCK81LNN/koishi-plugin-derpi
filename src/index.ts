@@ -1,10 +1,11 @@
 import { Context, Schema, Session, Time, segment } from "koishi"
+import { pathToFileURL } from "url"
 import type {} from "@koishijs/plugin-help" // used to define hidden options
 import { getRandomImage, LoadedImage, loadImage, setBooruUrl } from "./api"
-import ErrorWrapper from "./error-wrapper"
-import { pathToFileURL } from "url"
 
 export const name = "lnnbot-derpi"
+export const inject = ["http"]
+
 export interface Config {
   /** 图站网址 */
   booruUrl: string
@@ -139,7 +140,6 @@ export const Config: Schema<Config> = Schema.object({
 })
 
 export function apply(ctx: Context, config: Config) {
-  const logger = ctx.logger("derpi")
   setBooruUrl(config.booruUrl)
 
   /**
@@ -156,10 +156,10 @@ export function apply(ctx: Context, config: Config) {
     if (isNaN(lastInvokeTime)) return session.text(".too-fast")
     lastInvokeTimeMap.set(session.cid, NaN)
 
-    let holdOnHandle: NodeJS.Timeout | null = null
+    let holdOnHandle: (() => void) | null = null
     const elapsedTime = Date.now() - lastInvokeTime
     if (elapsedTime > config.omitHoldOnTimeout)
-      holdOnHandle = setTimeout(() => {
+      holdOnHandle = ctx.setTimeout(() => {
         session.send(session.text(".hold-on"))
       }, config.holdOnTime)
 
@@ -167,15 +167,8 @@ export function apply(ctx: Context, config: Config) {
     let outPath: string
     try {
       ;({ id, outPath } = await promise)
-    } catch (err) {
-      if (err instanceof ErrorWrapper) {
-        if (err.error) logger.warn(err.error)
-        return session.text(...err.message)
-      }
-      logger.error(err)
-      return session.text("internal.error-encountered")
     } finally {
-      if (holdOnHandle !== null) clearTimeout(holdOnHandle)
+      holdOnHandle?.()
       lastInvokeTimeMap.set(session.cid, Date.now())
     }
 
@@ -191,7 +184,7 @@ export function apply(ctx: Context, config: Config) {
   })
   cmdDerpi.action(({ session }, id) => {
     lastQueryMap.delete(session.cid)
-    return sendImage(session, loadImage(id))
+    return sendImage(session, loadImage(ctx.http, id))
   })
 
   const cmdDerpiRandom = ctx
@@ -265,7 +258,7 @@ export function apply(ctx: Context, config: Config) {
         { q },
         config.filterId >= 0 ? { filter_id: config.filterId } : null
       )
-      return sendImage(session, getRandomImage(opt))
+      return sendImage(session, getRandomImage(ctx.http, opt))
     })
 
   ctx.i18n.define("zh", require("./locales/zh"))
