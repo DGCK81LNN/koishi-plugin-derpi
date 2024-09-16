@@ -1,4 +1,4 @@
-import { Context, Schema, Session, Time, segment } from "koishi"
+import { Context, Schema, Session, Time, escapeRegExp, segment } from "koishi"
 import { pathToFileURL } from "url"
 import type {} from "@koishijs/plugin-help" // used to define hidden options
 import { getRandomImage, LoadedImage, loadImage, setBooruUrl } from "./api"
@@ -103,37 +103,37 @@ export const Config: Schema<Config> = Schema.object({
     .default([
       {
         name: ["小马"],
-        query: "pony",
+        query: "wilson_score.gte:0.97",
         options: undefined,
       },
       {
         name: ["暮暮", "紫悦", "TS"],
-        query: "ts,pony,solo",
+        query: "ts,solo",
         options: undefined,
       },
       {
         name: ["萍琪", "碧琪", "PP"],
-        query: "pp,pony,solo",
+        query: "pp,solo",
         options: undefined,
       },
       {
         name: ["阿杰", "嘉儿", "AJ"],
-        query: "aj,pony,solo",
+        query: "aj,solo",
         options: undefined,
       },
       {
         name: ["柔柔", "小蝶", "FS"],
-        query: "fs,pony,solo",
+        query: "fs,solo",
         options: undefined,
       },
       {
         name: ["云宝", "戴茜", "黛茜", "黛西", "RD"],
-        query: "rd,pony,solo",
+        query: "rd,solo",
         options: undefined,
       },
       {
         name: ["瑞瑞", "珍奇", "RY"],
-        query: "ry,pony,solo",
+        query: "ry,solo",
         options: undefined,
       },
     ]),
@@ -201,13 +201,14 @@ export function apply(ctx: Context, config: Config) {
     .option("dark", "-S", { value: 1 })
     .option("dark", "-g", { value: 2 })
     .option("grotesq", "-G", { fallback: false, hidden: true })
-    .alias("再来", "再来一张")
+    .shortcut(/^(?:再来|再来一张)$/)
 
   const randomShortcutsUsage = config.randomShortcuts.map(({ name, query, options }) => {
     const nameArr: string[] = typeof name === "string" ? [name] : name
-    for (const name of nameArr) {
-      cmdDerpiRandom.alias(`随机${name}图`, { args: [query], options })
-    }
+    const namesRe = nameArr.map(n => escapeRegExp(n)).join("|")
+    const regExp = new RegExp(`^随机(?:${namesRe})图$`, "i")
+    //console.dir(regExp)
+    cmdDerpiRandom.shortcut(regExp, { args: [query], options })
 
     return `随机${nameArr.join("/")}图`
   })
